@@ -5,8 +5,8 @@ id = "fan-clips"
 name = "IT Crowd clips"
 version = "1.0.0"
 kind = "sounds"
-# The first raptaboard that installs packs.
-min_app = "0.3.0"
+# Any raptaboard that installs packs: sounds need nothing newer.
+min_app = "0.1.0"
 # Ticked in the list raptaboard offers when it first starts.
 suggested = true
 summary = "\"I'm disabled\" and \"Fire!\" from The IT Crowd, for the robot state sounds."
