@@ -82,11 +82,16 @@ file = "raptor.svg"
 
 [[plugin]]
 file = "doom.wasm"
+
+[[layout]]
+name = "Match"
+file = "match.json"
 """
-        self.pack(toml=toml, files=("beep.mp3", "raptor.svg", "doom.wasm"))
+        self.pack(toml=toml, files=("beep.mp3", "raptor.svg", "doom.wasm", "match.json"))
         [pack] = bc.catalog(bc.load_packs(self.packs), "v1")["packs"]
         self.assertEqual(pack["images"], [{"name": "raptor", "file": "raptor.svg"}])
         self.assertEqual(pack["plugins"], [{"file": "doom.wasm"}])
+        self.assertEqual(pack["layouts"], [{"name": "Match", "file": "match.json"}])
         self.assertEqual(pack["kind"], "sounds")
 
     def test_a_section_takes_its_own_file_types(self):

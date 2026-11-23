@@ -12,8 +12,8 @@ release workflow then signs `catalog.json` (`catalog.json.sig`) and
 publishes the lot as a GitHub release.
 
 A pack holds sections, mixed as needed: [[sound]] (name and file; a
-built-in sound's name replaces it in raptaboard), [[image]], [[field]] and
-[[plugin]] (file, optional name). `kind` is an optional label.
+built-in sound's name replaces it in raptaboard), [[image]], [[field]],
+[[plugin]] and [[layout]] (file, optional name). `kind` is an optional label.
 
 The catalog format (`format` 1) is read by raptaboard
 (crates/app/src/content.rs there); change both together.
@@ -41,6 +41,7 @@ SECTIONS = {
     "image": ("images", {".png", ".jpg", ".jpeg", ".svg"}),
     "field": ("fields", {".json"}),
     "plugin": ("plugins", {".wasm"}),
+    "layout": ("layouts", {".json"}),
 }
 ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
