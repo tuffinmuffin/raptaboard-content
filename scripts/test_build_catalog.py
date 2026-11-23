@@ -70,8 +70,28 @@ class Packs(unittest.TestCase):
     def test_every_required_key_is_needed(self):
         self.fails("needs license", toml=GOOD.replace('license = "CC0"', ""))
 
-    def test_the_kind_is_known(self):
-        self.fails("kind must be", toml=GOOD.replace('"sounds"', '"movies"'))
+    def test_a_pack_needs_a_section(self):
+        no_sections = GOOD.split("[[sound]]")[0]
+        self.fails("needs at least one of", toml=no_sections, files=())
+
+    def test_sections_mix_and_reach_the_catalog(self):
+        toml = GOOD + """
+[[image]]
+name = "raptor"
+file = "raptor.svg"
+
+[[plugin]]
+file = "doom.wasm"
+"""
+        self.pack(toml=toml, files=("beep.mp3", "raptor.svg", "doom.wasm"))
+        [pack] = bc.catalog(bc.load_packs(self.packs), "v1")["packs"]
+        self.assertEqual(pack["images"], [{"name": "raptor", "file": "raptor.svg"}])
+        self.assertEqual(pack["plugins"], [{"file": "doom.wasm"}])
+        self.assertEqual(pack["kind"], "sounds")
+
+    def test_a_section_takes_its_own_file_types(self):
+        toml = GOOD + '\n[[plugin]]\nfile = "doom.mp3"\n'
+        self.fails("isn't a plugin file", toml=toml, files=("beep.mp3", "doom.mp3"))
 
     def test_versions_are_x_y_z(self):
         self.fails("version must be", toml=GOOD.replace('"1.2.0"', '"1.2"'))
@@ -85,10 +105,11 @@ class Packs(unittest.TestCase):
     def test_sounds_need_a_sound_file(self):
         self.fails("isn't a sound", toml=GOOD.replace("beep.mp3", "beep.txt"), files=("beep.txt",))
 
-    def test_sound_names_are_unique_across_packs(self):
+    def test_packs_may_share_a_sound_name(self):
+        # raptaboard layers them: the newest install wins.
         self.pack()
-        other = GOOD.replace('"beeps"', '"more"').replace('"Beeps"', '"More"')
-        self.fails("in both beeps and more", toml=other, folder="more")
+        self.pack(toml=GOOD.replace('"beeps"', '"more"'), folder="more")
+        self.assertEqual(len(bc.load_packs(self.packs)), 2)
 
     def test_the_catalog_points_at_the_release_assets(self):
         self.pack()

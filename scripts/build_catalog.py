@@ -11,6 +11,10 @@ download URLs (the release of that tag), sizes and SHA-256 checksums. The
 release workflow then signs `catalog.json` (`catalog.json.sig`) and
 publishes the lot as a GitHub release.
 
+A pack holds sections, mixed as needed: [[sound]] (name and file; a
+built-in sound's name replaces it in raptaboard), [[image]], [[field]] and
+[[plugin]] (file, optional name). `kind` is an optional label.
+
 The catalog format (`format` 1) is read by raptaboard
 (crates/app/src/content.rs there); change both together.
 """
@@ -29,12 +33,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FORMAT = 1
 REPO = "tuffinmuffin/raptaboard-content"
-KINDS = {"sounds", "plugin"}
-REQUIRED = ["id", "name", "version", "kind", "min_app", "summary", "license", "credits"]
+REQUIRED = ["id", "name", "version", "min_app", "summary", "license", "credits"]
+# Each section a pack may have, the catalog key it becomes, and the file
+# types it takes. A sound has a name; the others may (else the file's).
+SECTIONS = {
+    "sound": ("sounds", {".mp3", ".wav", ".ogg", ".flac"}),
+    "image": ("images", {".png", ".jpg", ".jpeg", ".svg"}),
+    "field": ("fields", {".json"}),
+    "plugin": ("plugins", {".wasm"}),
+}
 ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 VERSION = re.compile(r"^\d+\.\d+\.\d+$")
-SOUND_TYPES = {".mp3", ".wav", ".ogg", ".flac"}
 
 
 class PackError(Exception):
@@ -59,30 +69,37 @@ def load_pack(folder: Path) -> dict:
         raise PackError(f"{where}: id {pack['id']!r} must match its folder name")
     if not ID.match(pack["id"]):
         raise PackError(f"{where}: id must be lowercase letters, digits and dashes")
-    if pack["kind"] not in KINDS:
-        raise PackError(f"{where}: kind must be one of {sorted(KINDS)}")
+    if "kind" in pack and not isinstance(pack["kind"], str):
+        raise PackError(f"{where}: kind is a word saying what it holds, if given")
     for key in ["version", "min_app"]:
         if not VERSION.match(pack[key]):
             raise PackError(f"{where}: {key} must be a version like 1.0.0")
     if not isinstance(pack.get("suggested", False), bool):
         raise PackError(f"{where}: suggested must be true or false")
 
-    sounds = pack.get("sound", [])
-    if pack["kind"] == "sounds" and not sounds:
-        raise PackError(f"{where}: a sounds pack needs at least one [[sound]]")
-    names: set[str] = set()
-    for sound in sounds:
-        name, file = sound.get("name"), sound.get("file")
-        if not isinstance(name, str) or not name.strip() or not isinstance(file, str):
-            raise PackError(f"{where}: each [[sound]] needs a name and a file")
-        if name in names:
-            raise PackError(f"{where}: two sounds are named {name!r}")
-        names.add(name)
-        if Path(file).suffix.lower() not in SOUND_TYPES:
-            raise PackError(f"{where}: {file} isn't a sound file ({sorted(SOUND_TYPES)})")
+    if not any(pack.get(section) for section in SECTIONS):
+        raise PackError(f"{where}: needs at least one of " + ", ".join(f"[[{s}]]" for s in SECTIONS))
+    used: set[str] = set()
+    for section, (_, types) in SECTIONS.items():
+        names: set[str] = set()
+        for item in pack.get(section, []):
+            name, file = item.get("name"), item.get("file")
+            if not isinstance(file, str):
+                raise PackError(f"{where}: each [[{section}]] needs a file")
+            if section == "sound" and (not isinstance(name, str) or not name.strip()):
+                raise PackError(f"{where}: each [[sound]] needs a name")
+            if name is not None and not isinstance(name, str):
+                raise PackError(f"{where}: a [[{section}]]'s name is text")
+            label = name or file
+            if label in names:
+                raise PackError(f"{where}: two {section}s are named {label!r}")
+            names.add(label)
+            if Path(file).suffix.lower() not in types:
+                raise PackError(f"{where}: {file} isn't a {section} file ({sorted(types)})")
+            used.add(file)
 
     present = sorted(p.name for p in folder.iterdir() if p.name != "pack.toml")
-    listed = sorted({s["file"] for s in sounds} | set(pack.get("files", [])))
+    listed = sorted(used | set(pack.get("files", [])))
     for name in present:
         if not (folder / name).is_file():
             raise PackError(f"{folder.name}/{name}: packs hold files only, no folders")
@@ -106,19 +123,11 @@ def load_pack(folder: Path) -> dict:
 
 
 def load_packs(packs: Path) -> list[dict]:
-    """Every pack under `packs`, checked, in id order. Sound names must be
-    unique across packs, since raptaboard lists them together."""
+    """Every pack under `packs`, checked, in id order. Two packs may give a
+    sound the same name (or a built-in one's): raptaboard layers them, the
+    newest install winning."""
     folders = sorted(p for p in packs.iterdir() if p.is_dir()) if packs.is_dir() else []
-    loaded = [load_pack(f) for f in folders]
-    seen: dict[str, str] = {}
-    for pack in loaded:
-        for sound in pack.get("sound", []):
-            if sound["name"] in seen:
-                raise PackError(
-                    f"sound {sound['name']!r} is in both {seen[sound['name']]} and {pack['id']}"
-                )
-            seen[sound["name"]] = pack["id"]
-    return loaded
+    return [load_pack(f) for f in folders]
 
 
 def asset_name(pack: dict, path: str) -> str:
@@ -132,9 +141,16 @@ def catalog(packs: list[dict], tag: str, repo: str = REPO) -> dict:
     out = []
     for pack in packs:
         entry = {key: pack[key] for key in REQUIRED}
+        if pack.get("kind"):
+            entry["kind"] = pack["kind"]
         entry["suggested"] = pack.get("suggested", False)
-        if pack.get("sound"):
-            entry["sounds"] = [{"name": s["name"], "file": s["file"]} for s in pack["sound"]]
+        for section, (key, _) in SECTIONS.items():
+            items = [
+                {k: item[k] for k in ("name", "file") if k in item}
+                for item in pack.get(section, [])
+            ]
+            if items:
+                entry[key] = items
         entry["files"] = [
             {**f, "url": f"{base}/{asset_name(pack, f['path'])}"} for f in pack["files"]
         ]

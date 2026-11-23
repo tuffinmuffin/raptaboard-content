@@ -4,6 +4,7 @@
 id = "fan-clips"
 name = "IT Crowd clips"
 version = "1.0.0"
+# A label only: what it holds is its sections ([[sound]] below).
 kind = "sounds"
 # Any raptaboard that installs packs: sounds need nothing newer.
 min_app = "0.1.0"

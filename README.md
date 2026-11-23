@@ -18,8 +18,11 @@ Each folder in [packs/](packs/) is a pack: a `pack.toml` and its files (no subfo
 - `id` matches the folder name; `version` and `min_app` (the oldest raptaboard it works
   with) are versions like `1.0.0`. Raise `version` whenever a file changes, so raptaboard
   offers the update.
-- `kind` is `sounds` or `plugin`. A sounds pack lists each `[[sound]]` with the `name`
-  raptaboard shows and its `file`. Sound names are unique across every pack.
+- What it holds is its sections, mixed as needed: `[[sound]]` (the `name` raptaboard shows and
+  its `file`), `[[image]]`, `[[field]]` and `[[plugin]]` (a `file`, and a `name` if not the
+  file's). A sound may have a new name or a built-in one's (`fire 1`), which it then replaces;
+  where packs share a name, the newest install wins. raptaboard uses sounds so far; the other
+  sections are for what comes next. `kind` is an optional label.
 - `license` is one line; `credits` is the full text raptaboard shows before installing.
 - `suggested = true` ticks the pack in the list raptaboard offers when it first starts.
 
