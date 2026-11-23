@@ -1,0 +1,48 @@
+name: Release
+
+# Tag vN (v1, v2, ...) to publish the packs: a GitHub release holding every pack
+# file and catalog.json, signed. raptaboard reads
+# https://github.com/tuffinmuffin/raptaboard-content/releases/latest/download/catalog.json
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python3 -m unittest discover scripts
+      - name: Build the catalog
+        run: python3 scripts/build_catalog.py --tag "$GITHUB_REF_NAME" --out dist
+      - name: Sign the catalog
+        env:
+          CONTENT_SIGNING_KEY: ${{ secrets.CONTENT_SIGNING_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$CONTENT_SIGNING_KEY" > "$RUNNER_TEMP/signing.pem"
+          # Ed25519 over the file's bytes: a raw 64-byte signature.
+          openssl pkeyutl -sign -rawin -inkey "$RUNNER_TEMP/signing.pem" \
+            -in dist/catalog.json -out dist/catalog.json.sig
+          rm "$RUNNER_TEMP/signing.pem"
+      - name: The signature checks with the public key raptaboard has
+        run: |
+          # catalog-key.pub is the raw 32-byte key, base64; wrap it as a DER
+          # SubjectPublicKeyInfo (the 12-byte Ed25519 prefix) for openssl.
+          { printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x70\x03\x21\x00'; base64 -d catalog-key.pub; } > "$RUNNER_TEMP/key.der"
+          openssl pkeyutl -verify -rawin -pubin -keyform DER -inkey "$RUNNER_TEMP/key.der" \
+            -in dist/catalog.json -sigfile dist/catalog.json.sig
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "Content $GITHUB_REF_NAME" \
+            --notes "Packs: $(python3 -c "import json; print(', '.join(p['id'] + ' ' + p['version'] for p in json.load(open('dist/catalog.json'))['packs']))")"

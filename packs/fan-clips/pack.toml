@@ -1,0 +1,43 @@
+# The IT Crowd's "I'm disabled" and "Fire!" for raptaboard's robot state sounds.
+# They used to be built into raptaboard (its media/audio/README.md has their history).
+
+id = "fan-clips"
+name = "IT Crowd clips"
+version = "1.0.0"
+kind = "sounds"
+# The first raptaboard that installs packs.
+min_app = "0.3.0"
+# Ticked in the list raptaboard offers when it first starts.
+suggested = true
+summary = "\"I'm disabled\" and \"Fire!\" from The IT Crowd, for the robot state sounds."
+license = "Not open source: not ours, kept for non-commercial, educational use"
+credits = """
+"I'm disabled" (disabled 1, disabled 2): a line from the TV series The IT Crowd \
+(its channel: https://www.youtube.com/@TheITCrowdChannel), taken from a fan upload, \
+"The IT Crowd Disabled" by wormy76, https://www.youtube.com/watch?v=dDZzl9AyXeg
+
+"Fire!" (fire 1, fire 2): from The IT Crowd, Series 1, Episode 2, on The IT Crowd's \
+YouTube channel, https://www.youtube.com/watch?v=1EBfxjSFAxQ
+
+These clips aren't ours. They're short quotes kept for non-commercial, educational use \
+by FRC teams, and are removed at once if their owner asks.
+"""
+
+# Each sound is offered under its name in raptaboard's sound lists. These names are
+# the ones raptaboard used when the clips were built in, so layouts that chose them
+# play the clips again once the pack is installed (and a generated tone until then).
+[[sound]]
+name = "disabled 1"
+file = "disabled1.mp3"
+
+[[sound]]
+name = "disabled 2"
+file = "disabled2.mp3"
+
+[[sound]]
+name = "fire 1"
+file = "fire1.mp3"
+
+[[sound]]
+name = "fire 2"
+file = "fire2.mp3"
