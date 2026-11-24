@@ -1,0 +1,26 @@
+# Example widget plugins: raptaboard's Number and Alerts widgets remade as
+# plugins (the source is raptaboard's plugins/ folder), to show a plugin can
+# match a built-in widget. Each plugin is its .wasm with its manifest beside
+# it (number.wasm and number.toml).
+id = "example-widgets"
+name = "Example widget plugins"
+version = "0.1.0"
+kind = "plugins"
+# The first raptaboard that loads plugins from packs.
+min_app = "0.4.0"
+summary = "Number and Alerts widgets built as plugins: examples for writing your own."
+license = "MIT"
+credits = """
+Number and Alerts example plugins, from raptaboard's plugins/ folder
+(https://github.com/tuffinmuffin/raptaboard), by FRC Team 3200 Raptacon.
+
+MIT License. They draw like raptaboard's built-in Text Display (for a number)
+and Alerts widgets; the Alerts plugin plays a sound for a new error if you turn
+that on, and keeps its tab's mark while the tab is closed.
+"""
+
+[[plugin]]
+file = "number.wasm"
+
+[[plugin]]
+file = "alerts.wasm"

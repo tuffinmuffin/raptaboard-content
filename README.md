@@ -21,8 +21,17 @@ Each folder in [packs/](packs/) is a pack: a `pack.toml` and its files (no subfo
 - What it holds is its sections, mixed as needed: `[[sound]]` (the `name` raptaboard shows and
   its `file`), `[[image]]`, `[[field]]`, `[[plugin]]` and `[[layout]]` (a `file`, and a `name`
   if not the file's), and `files` for other data they read. A sound may have a new name or a built-in one's (`fire 1`), which it then replaces;
-  where packs share a name, the newest install wins. raptaboard uses sounds so far; the other
-  sections are for what comes next. `kind` is an optional label.
+  where packs share a name, the newest install wins. raptaboard uses sounds and plugins so far;
+  the other sections are for what comes next. `kind` is an optional label.
+- A `[[plugin]]`'s `file` is its WebAssembly component (`alerts.wasm`); its manifest, raptaboard's
+  `plugin.toml`, sits beside it named for it (`alerts.toml`). The catalog gives each plugin its
+  manifest's name and the permissions it asks for (sending values, sounds, running while its tab
+  is closed), which raptaboard shows before installing and holds the plugin to. Set `min_app` to
+  0.4.0 or later (the first raptaboard that loads plugins from packs).
+  [packs/example-widgets](packs/example-widgets/) holds raptaboard's example plugins, built from its
+  `plugins/` folder: `cd plugins && cargo build --release --target wasm32-wasip2` there, then copy
+  `target/wasm32-wasip2/release/<name>.wasm` and `<name>/plugin.toml` here as `<name>.wasm` and
+  `<name>.toml`, and raise the pack's `version`.
 - `license` is one line; `credits` is the full text raptaboard shows before installing.
 - `suggested = true` ticks the pack in the list raptaboard offers when it first starts.
 
