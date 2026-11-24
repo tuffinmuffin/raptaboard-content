@@ -29,6 +29,19 @@ file = "beep.mp3"
 """
 
 
+DOOM = """
+name = "doom"
+version = "0.1.0"
+api = "0.2"
+
+[permissions]
+sound = true
+publish = false
+"""
+
+PLUGIN = GOOD + '\n[[plugin]]\nfile = "doom.wasm"\n'
+
+
 class Packs(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -38,12 +51,14 @@ class Packs(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def pack(self, toml=GOOD, folder="beeps", files=("beep.mp3",)):
+    def pack(self, toml=GOOD, folder="beeps", files=("beep.mp3",), texts=None):
         d = self.packs / folder
         d.mkdir()
         (d / "pack.toml").write_text(toml)
         for f in files:
             (d / f).write_bytes(b"sound:" + f.encode())
+        for f, text in (texts or {}).items():
+            (d / f).write_text(text)
         return d
 
     def fails(self, message, **kw):
@@ -87,16 +102,45 @@ file = "doom.wasm"
 name = "Match"
 file = "match.json"
 """
-        self.pack(toml=toml, files=("beep.mp3", "raptor.svg", "doom.wasm", "match.json"))
+        self.pack(
+            toml=toml,
+            files=("beep.mp3", "raptor.svg", "doom.wasm", "match.json"),
+            texts={"doom.toml": DOOM},
+        )
         [pack] = bc.catalog(bc.load_packs(self.packs), "v1")["packs"]
         self.assertEqual(pack["images"], [{"name": "raptor", "file": "raptor.svg"}])
-        self.assertEqual(pack["plugins"], [{"file": "doom.wasm"}])
+        self.assertEqual(
+            pack["plugins"],
+            [{"name": "doom", "file": "doom.wasm", "permissions": ["sound"]}],
+        )
+        # The manifest is one of its files.
+        self.assertIn("doom.toml", [f["path"] for f in pack["files"]])
         self.assertEqual(pack["layouts"], [{"name": "Match", "file": "match.json"}])
         self.assertEqual(pack["kind"], "sounds")
 
     def test_a_section_takes_its_own_file_types(self):
         toml = GOOD + '\n[[plugin]]\nfile = "doom.mp3"\n'
         self.fails("isn't a plugin file", toml=toml, files=("beep.mp3", "doom.mp3"))
+
+    def test_a_plugin_needs_its_manifest_beside_it(self):
+        self.fails("needs its manifest beside it", toml=PLUGIN, files=("beep.mp3", "doom.wasm"))
+
+    def test_a_plugins_manifest_must_be_sound(self):
+        wasm = ("beep.mp3", "doom.wasm")
+        for manifest, message in [
+            (DOOM.replace('api = "0.2"', ""), "needs api"),
+            (DOOM.replace('"doom"', '"Doom!"'), "needs name"),
+            (DOOM + "\nfly = true\n", "permissions are"),
+            ("name = [", "doom.toml"),
+        ]:
+            with self.subTest(message):
+                self.tearDown()
+                self.setUp()
+                self.fails(message, toml=PLUGIN, files=wasm, texts={"doom.toml": manifest})
+
+    def test_a_plugins_name_is_its_manifests(self):
+        toml = PLUGIN.replace('file = "doom.wasm"', 'name = "quake"\nfile = "doom.wasm"')
+        self.fails("is named 'doom'", toml=toml, files=("beep.mp3", "doom.wasm"), texts={"doom.toml": DOOM})
 
     def test_versions_are_x_y_z(self):
         self.fails("version must be", toml=GOOD.replace('"1.2.0"', '"1.2"'))

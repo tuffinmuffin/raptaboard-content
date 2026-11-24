@@ -15,6 +15,12 @@ A pack holds sections, mixed as needed: [[sound]] (name and file; a
 built-in sound's name replaces it in raptaboard), [[image]], [[field]],
 [[plugin]] and [[layout]] (file, optional name). `kind` is an optional label.
 
+A [[plugin]]'s file is its WebAssembly component (`alerts.wasm`); its
+manifest, raptaboard's plugin.toml, sits beside it named for it
+(`alerts.toml`). The catalog gives each plugin its manifest's name and the
+permissions it asks for, which raptaboard shows before installing and holds
+the plugin to.
+
 The catalog format (`format` 1) is read by raptaboard
 (crates/app/src/content.rs there); change both together.
 """
@@ -46,10 +52,40 @@ SECTIONS = {
 ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 VERSION = re.compile(r"^\d+\.\d+\.\d+$")
+# What a plugin's manifest may ask for (raptaboard's plugin.toml [permissions]).
+PERMISSIONS = ["publish", "sound", "background"]
 
 
 class PackError(Exception):
     """A pack that's wrong, with what's wrong."""
+
+
+def plugin_manifest(folder: Path, file: str, where: str) -> tuple[str, str, list[str]]:
+    """The manifest beside a pack's plugin `file` (`alerts.wasm` →
+    `alerts.toml`): its file name, the plugin's name and the permissions it
+    asks for."""
+    manifest = Path(file).with_suffix(".toml").name
+    path = folder / manifest
+    if not path.is_file():
+        raise PackError(f"{where}: plugin {file} needs its manifest beside it, {manifest}")
+    try:
+        m = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        raise PackError(f"{folder.name}/{manifest}: {e}") from e
+    name = m.get("name")
+    if not isinstance(name, str) or not ID.match(name):
+        raise PackError(f"{folder.name}/{manifest}: needs name, lowercase letters, digits and dashes")
+    if not isinstance(m.get("api"), str):
+        raise PackError(f"{folder.name}/{manifest}: needs api, the plugin interface version")
+    asked = m.get("permissions", {})
+    if not isinstance(asked, dict):
+        raise PackError(f"{folder.name}/{manifest}: [permissions] is a table")
+    for key, value in asked.items():
+        if key not in PERMISSIONS or not isinstance(value, bool):
+            raise PackError(
+                f"{folder.name}/{manifest}: permissions are {PERMISSIONS}, each true or false"
+            )
+    return manifest, name, [p for p in PERMISSIONS if asked.get(p)]
 
 
 def load_pack(folder: Path) -> dict:
@@ -91,6 +127,15 @@ def load_pack(folder: Path) -> dict:
                 raise PackError(f"{where}: each [[sound]] needs a name")
             if name is not None and not isinstance(name, str):
                 raise PackError(f"{where}: a [[{section}]]'s name is text")
+            if section == "plugin":
+                if Path(file).suffix.lower() not in types:
+                    raise PackError(f"{where}: {file} isn't a {section} file ({sorted(types)})")
+                manifest, plugin_name, permissions = plugin_manifest(folder, file, where)
+                if name is not None and name != plugin_name:
+                    raise PackError(f"{where}: plugin {file} is named {plugin_name!r} in {manifest}")
+                name = item["name"] = plugin_name
+                item["permissions"] = permissions
+                used.add(manifest)
             label = name or file
             if label in names:
                 raise PackError(f"{where}: two {section}s are named {label!r}")
@@ -147,7 +192,7 @@ def catalog(packs: list[dict], tag: str, repo: str = REPO) -> dict:
         entry["suggested"] = pack.get("suggested", False)
         for section, (key, _) in SECTIONS.items():
             items = [
-                {k: item[k] for k in ("name", "file") if k in item}
+                {k: item[k] for k in ("name", "file", "permissions") if k in item}
                 for item in pack.get(section, [])
             ]
             if items:
