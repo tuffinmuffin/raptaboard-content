@@ -177,5 +177,152 @@ file = "match.json"
         self.assertEqual(json.loads((out / "catalog.json").read_text()), cat)
 
 
+
+# A plugin from another repository's release: its manifest and component.
+REMOTE_MANIFEST = DOOM.replace('api = "0.2"', 'api = "0.3"').replace(
+    "publish = false", "storage = true"
+)
+REMOTE = {"doom.wasm": b"\0asm component", "doom.toml": REMOTE_MANIFEST.encode()}
+SOURCED = GOOD + """
+[[plugin]]
+file = "doom.wasm"
+
+[[source]]
+repo = "team/doom"
+tag = "TAG"
+files = ["doom.wasm", "doom.toml"]
+"""
+
+
+class Sources(unittest.TestCase):
+    """Files from another repository's release ([[source]])."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.packs, self.cache, self.out = root / "packs", root / "cache", root / "dist"
+        self.packs.mkdir()
+        self.asked: list[str] = []
+        self.served = dict(REMOTE)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fetch(self, url: str) -> bytes:
+        """The release `team/doom` at any tag, serving self.served and its
+        SHA256SUMS; anything else isn't found."""
+        self.asked.append(url)
+        prefix = "https://github.com/team/doom/releases/download/"
+        if not url.startswith(prefix):
+            raise OSError("404")
+        name = url.rsplit("/", 1)[1]
+        if name == "SHA256SUMS":
+            return "".join(
+                f"{hashlib.sha256(REMOTE[n]).hexdigest()}  {n}\n" for n in REMOTE
+            ).encode()
+        if name not in self.served:
+            raise OSError("404")
+        return self.served[name]
+
+    def pack(self, tag="v1.0.0", toml=SOURCED):
+        d = self.packs / "beeps"
+        d.mkdir(exist_ok=True)
+        (d / "pack.toml").write_text(toml.replace("TAG", tag))
+        (d / "beep.mp3").write_bytes(b"sound:beep.mp3")
+
+    def load(self):
+        return bc.load_packs(self.packs, self.fetch, self.cache)
+
+    def fails(self, message, **kw):
+        self.pack(**kw)
+        with self.assertRaises(bc.PackError) as e:
+            self.load()
+        self.assertIn(message, str(e.exception))
+
+    def test_a_sources_files_are_checked_and_listed_with_their_urls(self):
+        self.pack()
+        [pack] = self.load()
+        files = {f["path"]: f for f in pack["files"]}
+        wasm = files["doom.wasm"]
+        self.assertEqual(wasm["sha256"], hashlib.sha256(REMOTE["doom.wasm"]).hexdigest())
+        self.assertEqual(wasm["size"], len(REMOTE["doom.wasm"]))
+        self.assertEqual(
+            wasm["url"], "https://github.com/team/doom/releases/download/v1.0.0/doom.wasm"
+        )
+        self.assertNotIn("url", files["beep.mp3"], "its own file: this release's")
+        # The plugin's manifest, from the source, names it and its permissions.
+        self.assertEqual(pack["plugin"][0]["permissions"], ["sound", "storage"])
+
+    def test_the_catalog_points_at_the_source_and_publishes_only_the_packs_own(self):
+        self.pack()
+        cat = bc.build(self.packs, self.out, "v7", "team/content", self.fetch, self.cache)
+        urls = {f["path"]: f["url"] for f in cat["packs"][0]["files"]}
+        self.assertEqual(urls["doom.toml"], "https://github.com/team/doom/releases/download/v1.0.0/doom.toml")
+        self.assertEqual(urls["beep.mp3"], "https://github.com/team/content/releases/download/v7/beeps.beep.mp3")
+        self.assertEqual(sorted(p.name for p in self.out.iterdir()), ["beeps.beep.mp3", "catalog.json"])
+
+    def test_downloads_are_kept_and_checked_again(self):
+        self.pack()
+        self.load()
+        downloads = [u for u in self.asked if not u.endswith("SHA256SUMS")]
+        self.assertEqual(len(downloads), 2)
+        self.asked.clear()
+        self.load()
+        self.assertEqual([u.rsplit("/", 1)[1] for u in self.asked], ["SHA256SUMS"], "from the cache")
+        # A cached file that changed is downloaded again.
+        cached = next(self.cache.rglob("doom.wasm"))
+        cached.write_bytes(b"tampered")
+        self.asked.clear()
+        self.load()
+        self.assertIn("doom.wasm", [u.rsplit("/", 1)[1] for u in self.asked])
+        self.assertEqual(cached.read_bytes(), REMOTE["doom.wasm"])
+
+    def test_a_file_must_match_its_releases_sums(self):
+        self.served["doom.wasm"] = b"something else"
+        self.fails("doesn't match its SHA256SUMS")
+
+    def test_a_source_lists_only_files_its_release_has(self):
+        self.fails("has no quake.wad", toml=SOURCED.replace('"doom.toml"]', '"doom.toml", "quake.wad"]'))
+
+    def test_a_missing_release_says_so(self):
+        self.fails("no SHA256SUMS", toml=SOURCED.replace("team/doom", "team/gone"))
+
+    def test_a_sources_file_must_be_used_and_not_clash(self):
+        unused = SOURCED.replace('[[plugin]]\nfile = "doom.wasm"\n', "")
+        self.fails("doesn't list", toml=unused)
+        self.tearDown()
+        self.setUp()
+        self.pack()
+        (self.packs / "beeps" / "doom.wasm").write_bytes(b"local")
+        with self.assertRaises(bc.PackError) as e:
+            self.load()
+        self.assertIn("both the pack's own and a source's", str(e.exception))
+
+    def test_a_source_is_a_repo_a_tag_and_files(self):
+        for bad, message in [
+            ('repo = "team/doom"', 'repo = "doom"'),
+            ('tag = "TAG"', 'tag = ""'),
+            ('files = ["doom.wasm", "doom.toml"]', "files = []"),
+        ]:
+            with self.subTest(message):
+                self.tearDown()
+                self.setUp()
+                self.fails("[[source]]", toml=SOURCED.replace(bad, message))
+
+    def test_a_release_catalog_takes_only_released_sources(self):
+        self.pack(tag="v1.0.0-pre.2")
+        with self.assertRaises(bc.PackError) as e:
+            bc.build(self.packs, self.out, "v7", "team/content", self.fetch, self.cache)
+        self.assertIn("is a pre-release", str(e.exception))
+        cat = bc.build(self.packs, self.out, "v7-pre.1", "team/content", self.fetch, self.cache)
+        self.assertEqual(cat["release"], "v7-pre.1")
+        self.assertTrue(bc.is_prerelease("v7-pre.1") and not bc.is_prerelease("v7"))
+
+    def test_sums_reads_sha256sums_output(self):
+        self.assertEqual(
+            bc.sums("abc  a.wasm\nDEF *b.toml\n\nbad\n"), {"a.wasm": "abc", "b.toml": "def"}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

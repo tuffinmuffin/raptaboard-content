@@ -1,0 +1,53 @@
+# Doom on the 2026 FRC field, as a raptaboard tab plugin: once installed, an
+# empty tab named "Doom" becomes the game. Built and released by
+# raptaboard-doom; [[source]] below takes the plugin (doom.wasm, its manifest
+# doom.toml), the WADs and title card it reads from its folder, and the
+# notices that must travel with them, from that release.
+id = "doom"
+name = "Doom: the 2026 field"
+version = "0.1.0"
+kind = "game"
+# The first raptaboard with tab plugins, sound streams and plugin storage.
+min_app = "0.4.0"
+summary = "The 2026 FRC field in Doom, played in a tab named \"Doom\": KitBots as the monsters."
+license = "MIT code; Freedoom BSD-3-Clause; field and KitBot models BSD-style (see credits)"
+credits = """
+The 2026 FRC field in Doom, from raptaboard-doom \
+(https://github.com/tuffinmuffin/raptaboard-doom), by FRC Team 3200 Raptacon. MIT License.
+
+The game runs on room4doom (https://github.com/flukejones/room4doom), MIT License, \
+Copyright (c) 2020 Luke Jones, with raptaboard-doom's patch.
+
+Its game data is Freedoom Phase 2 (https://freedoom.github.io/), BSD-3-Clause \
+(freedoom-COPYING.txt in this pack).
+
+The map and the KitBot sprites are made from the 2026 FRC field and the 2024, 2025 and 2026 \
+KitBot 3D models in AdvantageScopeAssets \
+(https://github.com/Mechanical-Advantage/AdvantageScopeAssets), Copyright (c) 2021-2026 \
+Littleton Robotics, under its BSD-style license (AdvantageScopeAssets-LICENSE.txt in this pack). \
+The field's design and CAD are FIRST's; FIRST and FIRST Robotics Competition are trademarks of \
+FIRST.
+
+Not affiliated with or endorsed by FIRST, Littleton Robotics, the Freedoom project or id \
+Software. NOTICE.md in this pack has the details.
+"""
+
+# What the plugin reads from its folder, and the notices.
+files = [
+    "freedoom2.wad", "frc2026.wad", "robots.wad", "face.wad", "splash.rgba",
+    "NOTICE.md", "freedoom-COPYING.txt", "AdvantageScopeAssets-LICENSE.txt", "room4doom-LICENSE.txt",
+]
+
+[[plugin]]
+file = "doom.wasm"
+
+# Built and released by raptaboard-doom (a pre-release until it has a
+# release: only a pre-release catalog may use it).
+[[source]]
+repo = "tuffinmuffin/raptaboard-doom"
+tag = "v0.1.0-pre.3"
+files = [
+    "doom.wasm", "doom.toml",
+    "freedoom2.wad", "frc2026.wad", "robots.wad", "face.wad", "splash.rgba",
+    "NOTICE.md", "freedoom-COPYING.txt", "AdvantageScopeAssets-LICENSE.txt", "room4doom-LICENSE.txt",
+]

@@ -26,12 +26,18 @@ Each folder in [packs/](packs/) is a pack: a `pack.toml` and its files (no subfo
 - A `[[plugin]]`'s `file` is its WebAssembly component (`alerts.wasm`); its manifest, raptaboard's
   `plugin.toml`, sits beside it named for it (`alerts.toml`). The catalog gives each plugin its
   manifest's name and the permissions it asks for (sending values, sounds, running while its tab
-  is closed), which raptaboard shows before installing and holds the plugin to. Set `min_app` to
+  is closed, saving values between runs), which raptaboard shows before installing and holds the plugin to. Set `min_app` to
   0.4.0 or later (the first raptaboard that loads plugins from packs).
-  [packs/example-widgets](packs/example-widgets/) holds raptaboard's example plugins, built from its
-  `plugins/` folder: `cd plugins && cargo build --release --target wasm32-wasip2` there, then copy
-  `target/wasm32-wasip2/release/<name>.wasm` and `<name>/plugin.toml` here as `<name>.wasm` and
-  `<name>.toml`, and raise the pack's `version`.
+- A pack's files may come from another repository's GitHub release instead of its folder: a
+  `[[source]]` gives the `repo`, the release `tag` and the `files` it takes, which the pack then
+  uses like its own. Building the catalog downloads each (kept in `.cache/`), checks it against
+  that release's `SHA256SUMS` and checks it as any pack file (a plugin's manifest too); the catalog
+  lists its URL in that release, so raptaboard downloads it from there. This is how plugins built
+  in their own repos get into packs: [packs/example-widgets](packs/example-widgets/) takes Number
+  and Alerts from [raptaboard-examples](https://github.com/tuffinmuffin/raptaboard-examples)'
+  releases and [packs/doom](packs/doom/) the game from
+  [raptaboard-doom](https://github.com/tuffinmuffin/raptaboard-doom)'s. To update one, change its
+  `tag` and raise the pack's `version`.
 - `license` is one line; `credits` is the full text raptaboard shows before installing.
 - `suggested = true` ticks the pack in the list raptaboard offers when it first starts.
 
@@ -40,10 +46,17 @@ Check them with `python3 scripts/build_catalog.py --check` and
 
 ## Releases
 
-Push a tag `vN` (`v1`, `v2`, ...) on `main` to publish. The Release workflow publishes every
+Push a tag `vN` (`v1`, `v2`, ...) on `main` to publish a release, or `vN-pre.M` (`v4-pre.1`) to
+publish a pre-release. The Release workflow publishes every
 pack file as a release asset named `<pack id>.<file>`, with `catalog.json` listing each
 pack's files, sizes and SHA-256 checksums. It also publishes `catalog.json.sig`, an Ed25519
 signature of `catalog.json` made with the `CONTENT_SIGNING_KEY` secret. raptaboard downloads
 `releases/latest/download/catalog.json` and its signature, and checks them against the public
 key it's built with, [catalog-key.pub](catalog-key.pub) (raw 32 bytes, base64). It checks each
 file against its checksum before using it.
+
+A pre-release (a tag with a `-`) is published the same way, signed with the same key, as a GitHub
+pre-release, so it never becomes `latest` and the released catalog is unchanged. Only a
+pre-release catalog may use pre-release sources (a source `tag` with a `-`, like
+`v0.1.0-pre.3`): building a release catalog with one fails and says so. So a pack can point at a
+plugin's pre-release to try it, and a release follows once the plugin's repo has released it.

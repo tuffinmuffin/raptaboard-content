@@ -1,18 +1,19 @@
 # Example widget plugins: raptaboard's Number and Alerts widgets remade as
-# plugins (the source is raptaboard's plugins/ folder), to show a plugin can
-# match a built-in widget. Each plugin is its .wasm with its manifest beside
-# it (number.wasm and number.toml).
+# plugins, to show a plugin can match a built-in widget. They're built and
+# released by raptaboard-examples; [[source]] below takes each plugin (its
+# .wasm with its manifest beside it, number.wasm and number.toml) from that
+# release.
 id = "example-widgets"
 name = "Example widget plugins"
-version = "0.1.0"
+version = "0.2.0"
 kind = "plugins"
 # The first raptaboard that loads plugins from packs.
 min_app = "0.4.0"
 summary = "Number and Alerts widgets built as plugins: examples for writing your own."
 license = "MIT"
 credits = """
-Number and Alerts example plugins, from raptaboard's plugins/ folder
-(https://github.com/tuffinmuffin/raptaboard), by FRC Team 3200 Raptacon.
+Number and Alerts example plugins, from raptaboard-examples
+(https://github.com/tuffinmuffin/raptaboard-examples), by FRC Team 3200 Raptacon.
 
 MIT License. They draw like raptaboard's built-in Text Display (for a number)
 and Alerts widgets; the Alerts plugin plays a sound for a new error if you turn
@@ -24,3 +25,10 @@ file = "number.wasm"
 
 [[plugin]]
 file = "alerts.wasm"
+
+# Built and released by raptaboard-examples (a pre-release until it has a
+# release: only a pre-release catalog may use it).
+[[source]]
+repo = "tuffinmuffin/raptaboard-examples"
+tag = "v0.1.0-pre.1"
+files = ["number.wasm", "number.toml", "alerts.wasm", "alerts.toml"]
