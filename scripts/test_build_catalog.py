@@ -111,7 +111,7 @@ file = "match.json"
         self.assertEqual(pack["images"], [{"name": "raptor", "file": "raptor.svg"}])
         self.assertEqual(
             pack["plugins"],
-            [{"name": "doom", "file": "doom.wasm", "permissions": ["sound"]}],
+            [{"name": "doom", "file": "doom.wasm", "permissions": ["sound"], "needs": {}}],
         )
         # The manifest is one of its files.
         self.assertIn("doom.toml", [f["path"] for f in pack["files"]])
@@ -137,6 +137,39 @@ file = "match.json"
                 self.tearDown()
                 self.setUp()
                 self.fails(message, toml=PLUGIN, files=wasm, texts={"doom.toml": manifest})
+
+    def test_a_plugins_needs_are_in_the_catalog(self):
+        # Only what it asks for.
+        game = DOOM.replace('api = "0.2"', 'api = "0.2"\ntab = "Doom"\ncapture_mouse = true')
+        game += "\n[limits]\nmemory_mb = 192\ncall_ms = 500\n"
+        self.pack(toml=PLUGIN, files=("beep.mp3", "doom.wasm"), texts={"doom.toml": game})
+        [pack] = bc.catalog(bc.load_packs(self.packs), "v1")["packs"]
+        self.assertEqual(
+            pack["plugins"][0]["needs"],
+            {"tab": "Doom", "capture_mouse": True, "memory_mb": 192, "call_ms": 500},
+        )
+
+    def test_a_plugins_needs_must_be_sound(self):
+        wasm = ("beep.mp3", "doom.wasm")
+        for extra, message in [
+            ("\n[limits]\nmemory_mb = 4096\n", "limits are"),
+            ("\n[limits]\ncall_ms = 0\n", "limits are"),
+            ("\n[limits]\nstorage_kb = true\n", "limits are"),
+            ("\n[limits]\ndisk_gb = 1\n", "limits are"),
+        ]:
+            with self.subTest(extra):
+                self.tearDown()
+                self.setUp()
+                self.fails(message, toml=PLUGIN, files=wasm, texts={"doom.toml": DOOM + extra})
+        for top, message in [
+            ('tab = ""', "tab is the name"),
+            ('capture_mouse = "yes"', "capture_mouse is true"),
+            ("limits = 3", "[limits] is a table"),
+        ]:
+            with self.subTest(top):
+                self.tearDown()
+                self.setUp()
+                self.fails(message, toml=PLUGIN, files=wasm, texts={"doom.toml": top + "\n" + DOOM})
 
     def test_a_plugins_name_is_its_manifests(self):
         toml = PLUGIN.replace('file = "doom.wasm"', 'name = "quake"\nfile = "doom.wasm"')
