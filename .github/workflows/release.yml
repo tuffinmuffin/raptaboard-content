@@ -3,6 +3,11 @@ name: Release
 # Tag vN (v1, v2, ...) to publish the packs: a GitHub release holding every pack
 # file and catalog.json, signed. raptaboard reads
 # https://github.com/tuffinmuffin/raptaboard-content/releases/latest/download/catalog.json
+#
+# Tag vN-pre.M (any tag with a "-") to publish a pre-release catalog instead: a
+# GitHub pre-release, signed the same, which may use pre-release sources
+# (scripts/build_catalog.py). It never becomes "latest", so the released
+# catalog stays as it was; raptaboard reads it only when told to.
 on:
   push:
     tags: ["v*"]
@@ -45,12 +50,18 @@ jobs:
           ls -la dist
           # --verify-tag: fail at once, saying so, if the tag isn't on GitHub
           # (deleted or moved after it was pushed) rather than making a new one.
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag \
+          pre=()
+          case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag "${pre[@]}" \
             --title "Content $GITHUB_REF_NAME" \
             --notes "Packs: $(python3 -c "import json; print(', '.join(p['id'] + ' ' + p['version'] for p in json.load(open('dist/catalog.json'))['packs']))")"
       - name: The published catalog downloads and checks, as raptaboard reads it
         run: |
-          base="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download"
+          # A release as "latest"; a pre-release (never latest) by its tag.
+          case "$GITHUB_REF_NAME" in
+            *-*) base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" ;;
+            *) base="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download" ;;
+          esac
           mkdir check
           # The release can take a moment to become "latest".
           for i in 1 2 3 4 5 6; do
@@ -60,7 +71,7 @@ jobs:
             sleep 10
           done
           cmp dist/catalog.json check/catalog.json || {
-            echo "::error::releases/latest/download/catalog.json isn't this release's catalog"; exit 1; }
+            echo "::error::$base/catalog.json isn't this release's catalog"; exit 1; }
           openssl pkeyutl -verify -rawin -pubin -keyform DER -inkey "$RUNNER_TEMP/key.der" \
             -in check/catalog.json -sigfile check/catalog.json.sig
           python3 - <<'PY'
