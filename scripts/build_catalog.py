@@ -147,12 +147,45 @@ def fetch_source(source: dict, where: str, fetch: Fetch, cache: Path) -> dict[st
     return out
 
 
+# What a plugin's manifest may ask for beyond the usual limits ([limits]),
+# each with raptaboard's largest: memory in MiB, each call's time in ms, its
+# saved values in KiB.
+LIMITS = {"memory_mb": 512, "call_ms": 1000, "storage_kb": 1024}
+
+
+def plugin_needs(m: dict, where: str) -> dict:
+    """What the manifest `m` needs beyond drawing a widget, shown before
+    installing: the tab it fills, whether it holds the mouse, and its
+    [limits]. Only what it asks for."""
+    needs = {}
+    tab = m.get("tab")
+    if tab is not None:
+        if not isinstance(tab, str) or not tab.strip():
+            raise PackError(f"{where}: tab is the name of the tab it fills")
+        needs["tab"] = tab
+    capture = m.get("capture_mouse", False)
+    if not isinstance(capture, bool):
+        raise PackError(f"{where}: capture_mouse is true or false")
+    if capture:
+        needs["capture_mouse"] = True
+    limits = m.get("limits", {})
+    if not isinstance(limits, dict):
+        raise PackError(f"{where}: [limits] is a table")
+    for key, value in limits.items():
+        most = LIMITS.get(key)
+        if most is None or isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= most:
+            raise PackError(f"{where}: limits are {LIMITS} at most, each a whole number from 1")
+        needs[key] = value
+    return needs
+
+
 def plugin_manifest(
     paths: dict[str, Path], folder: Path, file: str, where: str
-) -> tuple[str, str, list[str]]:
+) -> tuple[str, str, list[str], dict]:
     """The manifest beside a pack's plugin `file` (`alerts.wasm` →
     `alerts.toml`), from the pack's files (`paths`, by name): its file name,
-    the plugin's name and the permissions it asks for."""
+    the plugin's name, the permissions it asks for and its needs
+    (`plugin_needs`)."""
     manifest = Path(file).with_suffix(".toml").name
     path = paths.get(manifest)
     if path is None:
@@ -174,7 +207,8 @@ def plugin_manifest(
             raise PackError(
                 f"{folder.name}/{manifest}: permissions are {PERMISSIONS}, each true or false"
             )
-    return manifest, name, [p for p in PERMISSIONS if asked.get(p)]
+    needs = plugin_needs(m, f"{folder.name}/{manifest}")
+    return manifest, name, [p for p in PERMISSIONS if asked.get(p)], needs
 
 
 def load_pack(folder: Path, fetch: Fetch = http_get, cache: Path = CACHE) -> dict:
@@ -237,11 +271,15 @@ def load_pack(folder: Path, fetch: Fetch = http_get, cache: Path = CACHE) -> dic
             if section == "plugin":
                 if Path(file).suffix.lower() not in types:
                     raise PackError(f"{where}: {file} isn't a {section} file ({sorted(types)})")
-                manifest, plugin_name, permissions = plugin_manifest(paths, folder, file, where)
+                manifest, plugin_name, permissions, needs = plugin_manifest(
+                    paths, folder, file, where
+                )
                 if name is not None and name != plugin_name:
                     raise PackError(f"{where}: plugin {file} is named {plugin_name!r} in {manifest}")
                 name = item["name"] = plugin_name
                 item["permissions"] = permissions
+                if needs:
+                    item["needs"] = needs
                 used.add(manifest)
             label = name or file
             if label in names:
@@ -311,7 +349,7 @@ def catalog(packs: list[dict], tag: str, repo: str = REPO) -> dict:
         entry["suggested"] = pack.get("suggested", False)
         for section, (key, _) in SECTIONS.items():
             items = [
-                {k: item[k] for k in ("name", "file", "permissions") if k in item}
+                {k: item[k] for k in ("name", "file", "permissions", "needs") if k in item}
                 for item in pack.get(section, [])
             ]
             if items:

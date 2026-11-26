@@ -26,8 +26,10 @@ Each folder in [packs/](packs/) is a pack: a `pack.toml` and its files (no subfo
 - A `[[plugin]]`'s `file` is its WebAssembly component (`alerts.wasm`); its manifest, raptaboard's
   `plugin.toml`, sits beside it named for it (`alerts.toml`). The catalog gives each plugin its
   manifest's name and the permissions it asks for (sending values, sounds, running while its tab
-  is closed, saving values between runs), which raptaboard shows before installing and holds the plugin to. Set `min_app` to
-  0.4.0 or later (the first raptaboard that loads plugins from packs).
+  is closed, saving values between runs) and what else it needs (`needs`: the tab it fills, holding
+  the mouse, and more memory, time each call or saved space from its `[limits]`), which raptaboard
+  shows before installing and holds the plugin to. Set `min_app` to 0.4.0 or later (the first
+  raptaboard that loads plugins from packs).
 - A pack's files may come from another repository's GitHub release instead of its folder: a
   `[[source]]` gives the `repo`, the release `tag` and the `files` it takes, which the pack then
   uses like its own. Building the catalog downloads each (kept in `.cache/`), checks it against
