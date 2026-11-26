@@ -111,7 +111,7 @@ file = "match.json"
         self.assertEqual(pack["images"], [{"name": "raptor", "file": "raptor.svg"}])
         self.assertEqual(
             pack["plugins"],
-            [{"name": "doom", "file": "doom.wasm", "permissions": ["sound"]}],
+            [{"name": "doom", "file": "doom.wasm", "permissions": ["sound"], "needs": {}}],
         )
         # The manifest is one of its files.
         self.assertIn("doom.toml", [f["path"] for f in pack["files"]])
@@ -139,7 +139,7 @@ file = "match.json"
                 self.fails(message, toml=PLUGIN, files=wasm, texts={"doom.toml": manifest})
 
     def test_a_plugins_needs_are_in_the_catalog(self):
-        # Only what it asks for: a widget plugin's entry has none.
+        # Only what it asks for.
         game = DOOM.replace('api = "0.2"', 'api = "0.2"\ntab = "Doom"\ncapture_mouse = true')
         game += "\n[limits]\nmemory_mb = 192\ncall_ms = 500\n"
         self.pack(toml=PLUGIN, files=("beep.mp3", "doom.wasm"), texts={"doom.toml": game})

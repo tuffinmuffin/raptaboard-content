@@ -156,7 +156,7 @@ LIMITS = {"memory_mb": 512, "call_ms": 1000, "storage_kb": 1024}
 def plugin_needs(m: dict, where: str) -> dict:
     """What the manifest `m` needs beyond drawing a widget, shown before
     installing: the tab it fills, whether it holds the mouse, and its
-    [limits]. Only what it asks for."""
+    [limits]. Only what it asks for: a widget plugin's are empty."""
     needs = {}
     tab = m.get("tab")
     if tab is not None:
@@ -278,8 +278,9 @@ def load_pack(folder: Path, fetch: Fetch = http_get, cache: Path = CACHE) -> dic
                     raise PackError(f"{where}: plugin {file} is named {plugin_name!r} in {manifest}")
                 name = item["name"] = plugin_name
                 item["permissions"] = permissions
-                if needs:
-                    item["needs"] = needs
+                # Always, empty or not: raptaboard holds a plugin to the needs
+                # its catalog gave (a catalog before needs gave none).
+                item["needs"] = needs
                 used.add(manifest)
             label = name or file
             if label in names:
